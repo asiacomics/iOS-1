@@ -24,19 +24,21 @@ public class UserAgentManager {
     
     public static let shared = UserAgentManager()
     
-    private var defaultAgentRetreived = false
-    private var userAgent: UserAgent
+    private var userAgent: UserAgent = UserAgent()
     
     init() {
+        prepareUserAgent()
+    }
+    
+    private func prepareUserAgent() {
         let webview = WKWebView()
         webview.load(URLRequest(url: URL(string: "about:blank")!))
         
-        guard let defaultAgent = UserAgentManager.getDefaultAgent(webView: webview) else {
-            userAgent = UserAgent()
-            return
+        getDefaultAgent(webView: webview) { [weak self] agent in
+            guard let defaultAgent = agent else { return }
+            self?.userAgent = UserAgent(defaultAgent: defaultAgent)
+            print("Reference webview instance \(webview) to keep it in scope and allow UA to be returned")
         }
-        
-        userAgent = UserAgent(defaultAgent: defaultAgent)
     }
     
     public func update(webView: WKWebView, isDesktop: Bool, url: URL?) {
@@ -44,25 +46,11 @@ public class UserAgentManager {
         webView.customUserAgent = agent
     }
     
-    public static func getDefaultAgent(webView: WKWebView) -> String? {
-        var agent: String?
-        var complete = false
-
+    private func getDefaultAgent(webView: WKWebView, completion: @escaping (String?) -> Void) {
         webView.evaluateJavaScript("navigator.userAgent") { (result, _) in
-            agent = result as? String
-            complete = true
+            let agent = result as? String
+            completion(agent)
         }
-
-        let limit = Date().addingTimeInterval(TimeInterval(3.0))
-        while !complete {
-            RunLoop.current.run(mode: .default, before: .distantFuture)
-            let now = Date()
-            if now > limit {
-                complete = true
-            }
-        }
-
-        return agent
     }
 }
 
